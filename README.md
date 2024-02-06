@@ -12,6 +12,4 @@
 
 [起点Easy Builder企业版下载](https://pan.baidu.com/s/1Xlt6--7rQ9E9g8jE5Fu7sg?pwd=8888) 
 
-[起点Easy Builder社区版下载](https://pan.baidu.com/s/11R22Uom8j2qdA-KPjNoU6w?pwd=8888 ) 
-
 

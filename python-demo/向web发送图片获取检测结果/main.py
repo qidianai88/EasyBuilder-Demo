@@ -2,7 +2,7 @@
 # -*- coding:utf-8 -*-
 from typing import Union
 from tkinter import *
-from tkinter import StringVar, Variable, filedialog, scrolledtext, END, messagebox, LAST, INSERT
+from tkinter import StringVar,  filedialog,  messagebox
 import cv2
 import os
 from PIL import Image,ImageTk
@@ -17,12 +17,13 @@ from requests.packages.urllib3.poolmanager import PoolManager
 
 import numpy as np
 
-def load_class():
-    class_name = []
-    class_file = os.path.join("class.txt")
-    for line in open(class_file):
-        class_name.append(line.strip('\n'))
-    return class_name
+
+def show_cv_img(img):
+    image_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+    # 显示或保存PIL图像
+    image_pil.show()  # 在新窗口中显示图像
+
 
 class SourcePortAdapter(HTTPAdapter):
     """"Transport adapter" that allows us to set the source port."""
@@ -38,23 +39,9 @@ class SourcePortAdapter(HTTPAdapter):
             block=block, source_address=('', self._source_port))
 
 class PreviewDialog:
-    def __init__(
-            self,
-            root,
-            # master: Union[tkinter.Tk, tkinter.Toplevel],
-            # project: str,
-            config: dict = {},
-            **kwargs):
-        self.URL = StringVar()
-        if url is None or url=='':
-            self.URL.set('http://192.168.0.103:8080/rest/ai_detect_server/v1/ai_detect')
-        else:
-            self.URL.set(url)
-        # tkinter.Toplevel.__init__(self, master=master, cnf=config, **kwargs)
-        # self.transient(master)
+    def __init__( self,root):
 
         self.root = root
-        # self.project = project
         # ui placement
         self.root.geometry("720x620")
 
@@ -65,15 +52,14 @@ class PreviewDialog:
             f = open('url.txt', 'r')
             url =f.read()
             f.close()
-
+        self.URL = StringVar()
+        if url is None or url=='':
+            self.URL.set('http://192.168.0.103:8080/rest/ai_detect_server/v1/ai_detect')
+        else:
+            self.URL.set(url)
         tkinter.Entry(self.root, width=90,
                  textvariable=self.URL).place(x=80, y=10)
 
-
-        # tkinter.Label(self.root, text="端口:").place(x=510, y=10)
-        # self.port = IntVar()
-        # self.port.set(8080)
-        # tkinter.Spinbox(self.root, from_=0, to=65535, increment=1, width=8,textvariable=self.port).place(x=590, y=10)
 
         tkinter.Label(self.root, text="图片:").place(x=20, y=40)
         self.img_path = tkinter.StringVar()
@@ -82,40 +68,38 @@ class PreviewDialog:
         tkinter.Button(self.root, command=self.select_img, text="选择图片").place(x=440, y=35)
 
         # 图片显示区域
-        # self.photo = ImageTk.PhotoImage(file=r"res\logo256.png")
         self.img_panel = tkinter.Label(self.root,bitmap="gray50", width=700,height=500, relief=GROOVE)
         self.img_panel.place(x=10, y=65)
 
         tkinter.Button(self.root, command=self.__cancel, text="取消").place(x=150, y=585)
         tkinter.Button(self.root, command=self.__detect, text="识别图片内容").place(x=250, y=585)
 
-        # window management: set to front and grab window so that another window cannot be focused instead.
-        # self.lift(master)
-        # self.grab_set()
-        # self.focus_set()
 
     def select_img(self):
         filename = filedialog.askopenfilename()
         if filename is not None and filename != '':
             self.img_path.set(filename)
-            # img = cv2.imread(filename)
             img = cv2.imdecode(np.fromfile(filename, dtype=np.uint8), cv2.IMREAD_COLOR)
             self.show_img(img)
+
     def show_img(self,img):
-        cv2image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 转换颜色从BGR到RGBA
+        cv2image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 转换颜色从BGR到RGB
         current_image = Image.fromarray(cv2image)  # 将图像转换成Image对象
         imgtk = ImageTk.PhotoImage(image=current_image)
         self.img_panel.config(image=imgtk)
         self.img_panel.image=imgtk
+
     def __detect(self):
         self.save_url()
         filename = self.img_path.get()
         if filename == "":
             tkinter.messagebox.showinfo('提示', '请选择测试图片！')
             return
+
         with open(filename,"rb") as f:  # 转为二进制格式
             base64_data = base64.b64encode(f.read())  # 使用base64进行加密
             print(base64_data)
+
         headers = {'Content-Type': 'application/json'}
         datas = json.dumps({"model":"qdian80",
                         "image_name":'test.jpg',
@@ -123,16 +107,22 @@ class PreviewDialog:
                         "image": str(base64_data, encoding = "utf-8") })
         r = requests.post(self.URL.get(), data=datas, headers=headers)
         print(r.text)
+
         result = json.loads(r.text)
         if result['result'] != 'ok':
             return
-       img = cv2.imdecode(np.fromfile(filename, dtype=np.uint8), cv2.IMREAD_COLOR)
+
+        img = cv2.imdecode(np.fromfile(filename, dtype=np.uint8), cv2.IMREAD_COLOR)
+
         for obj in result["boxInfo"]:
-            label = f'{classes[int(obj["object_id"])]} {obj["score"]:.2f}'
+            label = f'class id:{int(obj["object_id"])} score:{obj["score"]:.2f}'
             box =[obj["left"],obj["top"],obj["right"],obj["bottom"]]
             plot_one_box(box,img,label=label)
 
-        self.show_img(img)
+        import threading
+        t = threading.Thread(target=show_cv_img, args=(img,))
+        t.start()
+
 
     def __cancel(self):
         self.root.destroy()
@@ -159,9 +149,8 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
         cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)  # filled
         cv2.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
-# Press the green button in the gutter to run the script.
+
 if __name__ == '__main__':
-    classes = load_class();
 
     root = tkinter.Tk()
     root.title('起点AI训练平台')
@@ -169,4 +158,3 @@ if __name__ == '__main__':
 
     root.mainloop()
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/

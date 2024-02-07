@@ -153,7 +153,7 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
 if __name__ == '__main__':
 
     root = tkinter.Tk()
-    root.title('起点AI训练平台')
+    root.title('起点Easy builder 图片检测接口demo')
     sys = PreviewDialog(root)
 
     root.mainloop()
